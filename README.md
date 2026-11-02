@@ -27,6 +27,10 @@ Comprehensive empirical study and benchmark implementations for classification, 
   - [Bias-Variance & Overfitting Demonstration](#bias-variance--overfitting-demonstration)
   - [Hyperparameter Optimization via Cross-Validation](#hyperparameter-optimization-via-cross-validation)
 - [Part 3: K-Means Clustering & PCA (Credit Card Customers)](#part-3-k-means-clustering--pca-credit-card-customers)
+  - [Dataset](#dataset)
+  - [Methods Implemented from Scratch](#methods-implemented-from-scratch)
+  - [K-Means Results](#k-means-results)
+  - [PCA Results](#pca-results)
 - [Installation & Quickstart](#installation--quickstart)
 - [Reproducibility](#reproducibility)
 - [License](#license)
@@ -192,6 +196,7 @@ The polynomial degree progression illustrates bias-variance tradeoff across the 
 - **Instances:** 8,950 credit-card customers
 - **Features:** 17 numeric customer-behaviour features; `CUST_ID` is excluded as an identifier.
 - **Preprocessing:** Missing numeric values are median-imputed, then all features are standardized.
+- **Local setup:** Download `CC GENERAL.csv` from Kaggle and place it at `archive/CC GENERAL.csv`. The raw dataset is intentionally not committed to this repository.
 
 ### Methods Implemented from Scratch
 
