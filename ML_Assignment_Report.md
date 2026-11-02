@@ -52,15 +52,15 @@ The target labels are originally one-hot encoded across 7 binary columns, conver
 - **Best: C=10, γ=scale**.
 - RBF kernel maps to infinite-dimensional feature space, enabling non-linear separation.
 
-#### d) Deep Neural Network (Bonus — PyTorch)
+#### d) Deep Convolutional Neural Network (Bonus — PyTorch)
 
 Architecture:
 ```
-Input(27) → Linear(256) + BN + ReLU + Dropout(0.3)
-          → Linear(128) + BN + ReLU + Dropout(0.3)
-          → Linear(64)  + BN + ReLU + Dropout(0.2)
-          → Linear(7)
+Input(1 × 27) → Conv1D(32, kernel=3) + BN + ReLU + MaxPool + Dropout(0.2)
+               → Conv1D(64, kernel=3) + BN + ReLU + AdaptiveAvgPool
+               → Dropout(0.3) → Linear(7)
 ```
+- The 27 standardized tabular features are supplied as a one-channel sequence.
 - Optimizer: Adam (lr=1e-3, weight_decay=1e-4)
 - LR Scheduler: StepLR (step=20, γ=0.5)
 - Epochs: 80, Batch size: 64
@@ -74,11 +74,10 @@ Input(27) → Linear(256) + BN + ReLU + Dropout(0.3)
 | KNN (k=5, CV) | 0.7121 | 0.7143 | 0.7121 | 0.7091 | 0.8889 |
 | Decision Tree (depth=12) | 0.7558 | 0.7628 | 0.7558 | 0.7569 | 0.8386 |
 | SVM (RBF, C=10) | 0.7609 | 0.7639 | 0.7609 | 0.7617 | **0.9247** |
-| **Deep Neural Network** *(Bonus)* | **0.7738** | **0.7835** | **0.7738** | **0.7740** | **0.9295** |
+| Deep Convolutional Neural Network *(Bonus)* | 0.6581 | 0.6084 | 0.6581 | 0.6255 | 0.8787 |
 
 > [!TIP]
-> **Best Classifier by ROC-AUC: Deep Neural Network (ROC-AUC = 0.9295)**  
-> SVM (RBF) is a close second (0.9247), making it the best non-neural baseline.
+> **Best Classifier by ROC-AUC: SVM with RBF kernel (ROC-AUC = 0.9247).**
 
 ---
 
@@ -87,7 +86,7 @@ Input(27) → Linear(256) + BN + ReLU + Dropout(0.3)
 - **KNN**: Struggles most with minority classes (Stains: 72, Dirtiness: 55) due to class imbalance.
 - **Decision Tree**: More balanced across classes but misclassifies boundary samples between K_Scratch and Other_Faults.
 - **SVM**: Better discrimination of minority classes owing to the margin-maximization objective.
-- **DNN**: Highest per-class recall, with BatchNorm and Dropout helping generalize on small classes.
+- **CNN**: Achieves ROC-AUC of 0.8787, but performs below the classical models on these ordered tabular descriptors; convolution is less naturally suited to this feature representation.
 
 ---
 
@@ -98,7 +97,7 @@ Input(27) → Linear(256) + BN + ReLU + Dropout(0.3)
 | KNN | Moderate (small k) | CV to select best k |
 | Decision Tree | High (unconstrained depth) | max_depth tuning via accuracy curve |
 | SVM (RBF) | Low-Moderate | C + γ grid search |
-| DNN | High (large params) | Dropout + BatchNorm + L2 via weight_decay |
+| CNN | Moderate-High | Dropout + BatchNorm + L2 via weight_decay |
 
 **Decision Tree depth analysis** clearly shows:
 - Depth 1–3: *Underfitting* — model too simple to capture class boundaries.
@@ -111,13 +110,13 @@ Input(27) → Linear(256) + BN + ReLU + Dropout(0.3)
 
 The ROC-AUC (one-vs-rest, weighted) measures the model's ability to rank positive class members higher than negative ones across all thresholds.
 
-- **DNN (0.9295)** achieves the highest AUC across all 7 classes, benefiting from its depth and regularization.
-- **SVM (0.9247)** ranks second — its kernel trick effectively handles the non-linear boundaries in the 27-dimensional feature space.
+- **SVM (0.9247)** achieves the highest weighted one-vs-rest AUC; its kernel trick effectively handles non-linear boundaries in the 27-dimensional feature space.
 - **KNN (0.8889)** is competitive but sensitive to local density variations.
+- **CNN (0.8787)** provides the required convolutional baseline, but its local-filter inductive bias is less appropriate for this tabular feature ordering.
 - **Decision Tree (0.8386)** has the lowest AUC; axis-aligned splits create hard boundaries that are suboptimal for this dataset's structure.
 
 > [!IMPORTANT]
-> **Conclusion:** The **Deep Neural Network** is the best classifier for Steel Plates Fault detection (ROC-AUC = 0.9295, Accuracy = 77.4%). For deployment without GPU/deep-learning infrastructure, **SVM with RBF kernel** is the recommended classical baseline.
+> **Conclusion:** The **SVM with RBF kernel** is the best classifier for Steel Plates Fault detection (ROC-AUC = 0.9247, Accuracy = 76.1%). The CNN fulfils the bonus implementation requirement but does not outperform the classical models on this tabular dataset.
 
 ---
 
@@ -245,6 +244,52 @@ Both Ridge and Lasso use 5-fold CV to select α:
 
 ---
 
+## Question 3: Clustering and Dimensionality Reduction — Credit Card Customers Dataset
+
+> [!NOTE]
+> **Dataset:** [Credit Card Dataset for Clustering](https://www.kaggle.com/datasets/arjunbhasin2013/ccdata) — 8,950 customers, 17 numeric behavioural features, and one identifier (`CUST_ID`).
+
+### 3.1 Preprocessing
+
+- `CUST_ID` was excluded because it is an identifier rather than a behavioural feature.
+- Missing numeric values were replaced by the median of their respective feature.
+- All 17 numeric features were standardized to zero mean and unit variance before clustering and PCA.
+
+### 3.2 K-Means Clustering from Scratch
+
+K-Means was implemented with NumPy using random centroid initialization, iterative nearest-centroid assignment, centroid updates, empty-cluster reseeding, and WCSS minimization. Ten initializations were evaluated per value of K and the lowest-WCSS solution was retained.
+
+| K | WCSS | Iterations (best run) |
+|---:|---:|---:|
+| 2 | 127,784.30 | 129 |
+| 3 | 111,973.61 | 69 |
+| 4 | 99,061.94 | 26 |
+| 5 | 91,491.11 | 35 |
+| 6 | 84,826.40 | 35 |
+
+The elbow curve shows a substantial reduction through **K=4**, followed by smaller incremental improvements. Therefore, K=4 was selected for the PCA-space cluster visualization.
+
+### 3.3 PCA from Covariance Matrix and Eigendecomposition
+
+PCA was implemented from scratch by computing the covariance matrix of the standardized data and applying symmetric eigendecomposition. Eigenvalues and eigenvectors are saved with the generated outputs; principal-component scores provide 2-component and 3-component reductions.
+
+- The first three eigenvalues are 4.6411, 3.4537, and 1.4984, corresponding to explained-variance ratios of 27.30%, 20.31%, and 8.81%.
+- First 2 principal components: **47.61%** cumulative explained variance.
+- First 3 principal components: **56.42%** cumulative explained variance.
+- The cumulative-explained-variance plot shows the contribution of all 17 components.
+- The first two components visualize the four selected K-Means clusters.
+
+<p align="center">
+  <img src="outputs/q3/kmeans_elbow_curve.png" width="48%" alt="K-Means elbow curve">
+  <img src="outputs/q3/pca_cumulative_explained_variance.png" width="48%" alt="PCA cumulative explained variance">
+</p>
+
+<p align="center">
+  <img src="outputs/q3/pca_first_two_components.png" width="65%" alt="Credit-card customers in first two principal components">
+</p>
+
+---
+
 ## Appendix: File Structure
 
 ```
@@ -255,15 +300,15 @@ ml/
     ├── q1/
     │   ├── knn_cv_accuracy.png         # KNN: CV accuracy vs k
     │   ├── dt_depth_analysis.png       # DT: Overfitting analysis
-    │   ├── dnn_training_curve.png      # DNN: Training curves
+    │   ├── cnn_training_curve.png      # CNN: Training curves
     │   ├── cm_KNN_*.png                # Confusion matrices
     │   ├── cm_Decision_Tree_*.png
     │   ├── cm_SVM_*.png
-    │   ├── cm_Deep_Neural_*.png
+    │   ├── cm_Deep_Convolutional_*.png
     │   ├── roc_knn.png                 # ROC curves
     │   ├── roc_dt.png
     │   ├── roc_svm.png
-    │   ├── roc_dnn.png
+    │   ├── roc_cnn.png
     │   └── classifier_comparison.png   # All classifiers comparison
     └── q2/
         ├── gd_convergence.png          # GD cost convergence
@@ -273,4 +318,11 @@ ml/
         ├── actual_vs_predicted.png     # All models scatter
         ├── residuals.png               # Residual plots
         └── regression_comparison.png   # Bar chart comparison
+    └── q3/
+        ├── kmeans_elbow_curve.png
+        ├── pca_cumulative_explained_variance.png
+        ├── pca_first_two_components.png
+        ├── pca_variance_summary.csv
+        ├── pca_eigenvectors.csv
+        └── pca_2_and_3_component_reductions.csv
 ```

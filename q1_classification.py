@@ -1,7 +1,7 @@
 ﻿"""
 Question 1: Classification - Steel Plates Faults Dataset
 Dataset: https://archive.uci.edu/dataset/198/steel+plates+faults
-Classifiers: KNN (CV), Decision Tree, SVM (RBF), Deep Neural Network (Bonus)
+Classifiers: KNN (CV), Decision Tree, SVM (RBF), 1D CNN (Bonus)
 """
 
 import numpy as np
@@ -251,48 +251,52 @@ res_svm = compute_metrics("SVM (RBF)", svm_best,
                           X_train_sc, X_test_sc, y_train, y_test)
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 3d. DEEP NEURAL NETWORK (Bonus) â€” PyTorch
+# 3d. DEEP CONVOLUTIONAL NEURAL NETWORK (Bonus) â€” PyTorch
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-print("\n  â”€â”€ Deep Neural Network (Bonus) â”€â”€")
+print("\n  â”€â”€ Deep Convolutional Neural Network (Bonus) â”€â”€")
 try:
     import torch
     import torch.nn as nn
     from torch.utils.data import TensorDataset, DataLoader
 
-    X_tr_t = torch.tensor(X_train_sc, dtype=torch.float32)
+    # Treat the ordered 27 standardized descriptors as a one-channel sequence.
+    X_tr_t = torch.tensor(X_train_sc, dtype=torch.float32).unsqueeze(1)
     y_tr_t = torch.tensor(y_train.values, dtype=torch.long)
-    X_te_t = torch.tensor(X_test_sc,  dtype=torch.float32)
+    X_te_t = torch.tensor(X_test_sc,  dtype=torch.float32).unsqueeze(1)
     y_te_t = torch.tensor(y_test.values, dtype=torch.long)
 
     train_ds = TensorDataset(X_tr_t, y_tr_t)
     train_dl = DataLoader(train_ds, batch_size=64, shuffle=True)
 
-    class DeepNet(nn.Module):
-        def __init__(self, in_dim, out_dim):
+    class ConvNet1D(nn.Module):
+        def __init__(self, out_dim):
             super().__init__()
-            self.net = nn.Sequential(
-                nn.Linear(in_dim, 256), nn.BatchNorm1d(256), nn.ReLU(), nn.Dropout(0.3),
-                nn.Linear(256, 128),    nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(0.3),
-                nn.Linear(128, 64),     nn.BatchNorm1d(64),  nn.ReLU(), nn.Dropout(0.2),
-                nn.Linear(64, out_dim)
+            self.features = nn.Sequential(
+                nn.Conv1d(1, 32, kernel_size=3, padding=1),
+                nn.BatchNorm1d(32), nn.ReLU(), nn.MaxPool1d(kernel_size=2), nn.Dropout(0.20),
+                nn.Conv1d(32, 64, kernel_size=3, padding=1),
+                nn.BatchNorm1d(64), nn.ReLU(), nn.AdaptiveAvgPool1d(1),
+                nn.Flatten(), nn.Dropout(0.30),
             )
+            self.classifier = nn.Linear(64, out_dim)
+
         def forward(self, x):
-            return self.net(x)
+            return self.classifier(self.features(x))
 
     device = torch.device('cpu')
-    model_dnn = DeepNet(X_train_sc.shape[1], n_classes).to(device)
-    optimizer = torch.optim.Adam(model_dnn.parameters(), lr=1e-3, weight_decay=1e-4)
+    model_cnn = ConvNet1D(n_classes).to(device)
+    optimizer = torch.optim.Adam(model_cnn.parameters(), lr=1e-3, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     train_losses, train_acc_hist, test_acc_hist = [], [], []
     EPOCHS = 80
     for epoch in range(EPOCHS):
-        model_dnn.train()
+        model_cnn.train()
         epoch_loss = 0
         for xb, yb in train_dl:
             optimizer.zero_grad()
-            out = model_dnn(xb)
+            out = model_cnn(xb)
             loss = criterion(out, yb)
             loss.backward()
             optimizer.step()
@@ -301,10 +305,10 @@ try:
         epoch_loss /= len(train_ds)
         train_losses.append(epoch_loss)
 
-        model_dnn.eval()
+        model_cnn.eval()
         with torch.no_grad():
-            tr_pred = model_dnn(X_tr_t).argmax(1).numpy()
-            te_pred = model_dnn(X_te_t).argmax(1).numpy()
+            tr_pred = model_cnn(X_tr_t).argmax(1).numpy()
+            te_pred = model_cnn(X_te_t).argmax(1).numpy()
         train_acc_hist.append(accuracy_score(y_train, tr_pred))
         test_acc_hist.append(accuracy_score(y_test,  te_pred))
 
@@ -315,51 +319,51 @@ try:
     # Training curve
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
     axes[0].plot(train_losses, color='steelblue')
-    axes[0].set_title('DNN Training Loss'); axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Loss')
+    axes[0].set_title('CNN Training Loss'); axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Loss')
     axes[1].plot(train_acc_hist, label='Train', color='steelblue')
     axes[1].plot(test_acc_hist,  label='Test',  color='orange')
-    axes[1].set_title('DNN Accuracy Curve'); axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('Accuracy')
+    axes[1].set_title('CNN Accuracy Curve'); axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('Accuracy')
     axes[1].legend()
     plt.tight_layout()
-    plt.savefig('outputs/q1/dnn_training_curve.png', dpi=150)
+    plt.savefig('outputs/q1/cnn_training_curve.png', dpi=150)
     plt.close()
 
-    model_dnn.eval()
+    model_cnn.eval()
     with torch.no_grad():
-        logits  = model_dnn(X_te_t)
-        y_prob_dnn = torch.softmax(logits, dim=1).numpy()
-        y_pred_dnn = logits.argmax(1).numpy()
+        logits  = model_cnn(X_te_t)
+        y_prob_cnn = torch.softmax(logits, dim=1).numpy()
+        y_pred_cnn = logits.argmax(1).numpy()
 
-    acc_dnn  = accuracy_score(y_test, y_pred_dnn)
-    prec_dnn = precision_score(y_test, y_pred_dnn, average='weighted', zero_division=0)
-    rec_dnn  = recall_score(y_test,  y_pred_dnn, average='weighted', zero_division=0)
-    f1_dnn   = f1_score(y_test,  y_pred_dnn, average='weighted', zero_division=0)
-    roc_dnn  = roc_auc_score(y_test, y_prob_dnn, multi_class='ovr', average='weighted')
+    acc_cnn  = accuracy_score(y_test, y_pred_cnn)
+    prec_cnn = precision_score(y_test, y_pred_cnn, average='weighted', zero_division=0)
+    rec_cnn  = recall_score(y_test,  y_pred_cnn, average='weighted', zero_division=0)
+    f1_cnn   = f1_score(y_test,  y_pred_cnn, average='weighted', zero_division=0)
+    roc_cnn  = roc_auc_score(y_test, y_prob_cnn, multi_class='ovr', average='weighted')
 
-    print(f"\n  Deep Neural Network (Bonus)")
-    print(f"    Accuracy  : {acc_dnn:.4f}")
-    print(f"    Precision : {prec_dnn:.4f}")
-    print(f"    Recall    : {rec_dnn:.4f}")
-    print(f"    F1-Score  : {f1_dnn:.4f}")
-    print(f"    ROC-AUC   : {roc_dnn:.4f}")
+    print(f"\n  Deep Convolutional Neural Network (Bonus)")
+    print(f"    Accuracy  : {acc_cnn:.4f}")
+    print(f"    Precision : {prec_cnn:.4f}")
+    print(f"    Recall    : {rec_cnn:.4f}")
+    print(f"    F1-Score  : {f1_cnn:.4f}")
+    print(f"    ROC-AUC   : {roc_cnn:.4f}")
 
-    res_dnn = {"Model": "Deep Neural Network (Bonus)",
-               "Accuracy": acc_dnn, "Precision": prec_dnn,
-               "Recall": rec_dnn, "F1": f1_dnn, "ROC-AUC": roc_dnn,
-               "y_pred": y_pred_dnn, "model": None}
-    dnn_available = True
+    res_cnn = {"Model": "Deep Convolutional Neural Network (Bonus)",
+               "Accuracy": acc_cnn, "Precision": prec_cnn,
+               "Recall": rec_cnn, "F1": f1_cnn, "ROC-AUC": roc_cnn,
+               "y_pred": y_pred_cnn, "model": None}
+    cnn_available = True
 except Exception as e:
-    print(f"  DNN skipped: {e}")
-    dnn_available = False
-    res_dnn = None
+    print(f"  CNN skipped: {e}")
+    cnn_available = False
+    res_cnn = None
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 4. CONFUSION MATRICES
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\n[4/7] Plotting confusion matrices...")
 results = [res_knn, res_dt, res_svm]
-if dnn_available and res_dnn:
-    results.append(res_dnn)
+if cnn_available and res_cnn:
+    results.append(res_cnn)
 
 short_names = [c[:8] for c in class_names]   # shorten for readability
 for res in results:
@@ -376,24 +380,24 @@ plot_roc_multiclass(res_knn["model"], X_test_sc,  y_test, "KNN",          'outpu
 plot_roc_multiclass(res_dt["model"],  X_test_sc,  y_test, "Decision Tree",'outputs/q1/roc_dt.png')
 plot_roc_multiclass(res_svm["model"], X_test_sc,  y_test, "SVM (RBF)",    'outputs/q1/roc_svm.png')
 
-if dnn_available and res_dnn:
-    # Manual ROC for DNN using stored probabilities
+if cnn_available and res_cnn:
+    # Manual ROC for the CNN using stored probabilities
     y_bin = label_binarize(y_test, classes=list(range(n_classes)))
     fig, ax = plt.subplots(figsize=(10, 7))
     colors = plt.cm.tab10(np.linspace(0, 1, n_classes))
     for i, (cls_name, color) in enumerate(zip(class_names, colors)):
-        fpr, tpr, _ = roc_curve(y_bin[:, i], y_prob_dnn[:, i])
+        fpr, tpr, _ = roc_curve(y_bin[:, i], y_prob_cnn[:, i])
         ax.plot(fpr, tpr, color=color, lw=1.5,
                 label=f'{cls_name} (AUC={auc(fpr, tpr):.2f})')
     ax.plot([0, 1], [0, 1], 'k--', lw=1)
     ax.set_xlim([0, 1]); ax.set_ylim([0, 1.02])
     ax.set_xlabel('FPR'); ax.set_ylabel('TPR')
-    ax.set_title('ROC Curves - Deep Neural Network (Bonus)', fontweight='bold')
+    ax.set_title('ROC Curves - Deep Convolutional Neural Network (Bonus)', fontweight='bold')
     ax.legend(loc='lower right', fontsize=8)
     plt.tight_layout()
-    plt.savefig('outputs/q1/roc_dnn.png', dpi=150)
+    plt.savefig('outputs/q1/roc_cnn.png', dpi=150)
     plt.close()
-    print("  Saved: outputs/q1/roc_dnn.png")
+    print("  Saved: outputs/q1/roc_cnn.png")
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 6. COMPARATIVE ROC PLOT (macro AUC per model)

@@ -1,4 +1,4 @@
-# Machine Learning Benchmarks: Classification & Regression
+# Machine Learning Benchmarks: Classification, Regression, Clustering & PCA
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Comprehensive empirical study and benchmark implementations for multi-class classification and high-dimensional regression using standard UCI Machine Learning datasets.
+Comprehensive empirical study and benchmark implementations for classification, regression, clustering, and dimensionality reduction using standard UCI and Kaggle datasets.
 
 ---
 
@@ -26,6 +26,7 @@ Comprehensive empirical study and benchmark implementations for multi-class clas
   - [Empirical Results](#regression-results)
   - [Bias-Variance & Overfitting Demonstration](#bias-variance--overfitting-demonstration)
   - [Hyperparameter Optimization via Cross-Validation](#hyperparameter-optimization-via-cross-validation)
+- [Part 3: K-Means Clustering & PCA (Credit Card Customers)](#part-3-k-means-clustering--pca-credit-card-customers)
 - [Installation & Quickstart](#installation--quickstart)
 - [Reproducibility](#reproducibility)
 - [License](#license)
@@ -37,6 +38,7 @@ Comprehensive empirical study and benchmark implementations for multi-class clas
 This repository contains rigorous implementations, cross-validation studies, and detailed analytical reports for:
 1. **Multi-class fault diagnosis** on the [UCI Steel Plates Faults Dataset](https://archive.ics.uci.edu/dataset/198/steel+plates+faults) comparing non-parametric, tree-based, margin-based, and deep learning classifiers.
 2. **Critical temperature prediction** on the [UCI Superconductivity Dataset](https://archive.ics.uci.edu/dataset/464/superconductivty+data) comparing first-order optimization (Gradient Descent from scratch), non-linear polynomial mapping, and $L_1$/$L_2$ regularized estimators.
+3. **Customer segmentation and dimensionality reduction** on the [Credit Card Dataset for Clustering](https://www.kaggle.com/datasets/arjunbhasin2013/ccdata), using K-Means and PCA implemented from scratch.
 
 ---
 
@@ -46,6 +48,7 @@ This repository contains rigorous implementations, cross-validation studies, and
 ml-benchmarks/
 ├── q1_classification.py        # Question 1: Classification pipelines & evaluation
 ├── q2_regression.py            # Question 2: Regression models, GD from scratch & CV
+├── q3_clustering_pca.py         # Question 3: K-Means and PCA from scratch
 ├── ML_Assignment_Report.md     # Detailed formal submission report
 ├── requirements.txt            # Dependency specifications
 ├── LICENSE                     # MIT License
@@ -55,14 +58,14 @@ ml-benchmarks/
     │   ├── cm_KNN_*.png
     │   ├── cm_Decision_Tree_*.png
     │   ├── cm_SVM_*.png
-    │   ├── cm_Deep_Neural_Network_*.png
+    │   ├── cm_Deep_Convolutional_Neural_Network_*.png
     │   ├── roc_knn.png
     │   ├── roc_dt.png
     │   ├── roc_svm.png
-    │   ├── roc_dnn.png
+    │   ├── roc_cnn.png
     │   ├── dt_depth_analysis.png
     │   ├── knn_cv_accuracy.png
-    │   └── dnn_training_curve.png
+    │   └── cnn_training_curve.png
     └── q2/                     # Regression figures & visualizations
         ├── actual_vs_predicted.png
         ├── gd_convergence.png
@@ -71,6 +74,13 @@ ml-benchmarks/
         ├── lasso_cv_alpha.png
         ├── residuals.png
         └── regression_comparison.png
+    └── q3/                     # Clustering and PCA figures & data
+        ├── kmeans_elbow_curve.png
+        ├── pca_cumulative_explained_variance.png
+        ├── pca_first_two_components.png
+        ├── pca_variance_summary.csv
+        ├── pca_eigenvectors.csv
+        └── pca_2_and_3_component_reductions.csv
 ```
 
 ---
@@ -87,8 +97,7 @@ ml-benchmarks/
 1. **K-Nearest Neighbors (KNN):** Hyperparameter selection via 5-fold Stratified Cross-Validation ($k \in \{3, 5, 7, 9, 11, 15\}$). Optimal $k = 5$ ($\text{CV Acc} = 0.7319 \pm 0.0160$).
 2. **Decision Tree Classifier:** Pruning and depth constraint analysis across maximum depths $1 \le d \le 20$. Optimal test generalization achieved at depth $d = 12$.
 3. **Support Vector Classifier (RBF Kernel):** Non-linear mapping using radial basis function with 3-fold grid optimization ($C = 10, \gamma = \text{'scale'}$).
-4. **Deep Neural Network (PyTorch Bonus):** Fully connected 4-layer architecture with Batch Normalization, Dropout ($p=0.3$), and Adam optimizer with StepLR scheduling:
-   $$\text{Input}(27) \xrightarrow{} \text{Dense}(256) \xrightarrow{} \text{Dense}(128) \xrightarrow{} \text{Dense}(64) \xrightarrow{} \text{Dense}(7)$$
+4. **Deep Convolutional Neural Network (PyTorch Bonus):** A 1D CNN over the 27 standardized descriptors, with two convolutional blocks, Batch Normalization, Max Pooling, Dropout, adaptive average pooling, and an output layer for seven fault classes.
 
 ### Classification Results
 
@@ -97,25 +106,25 @@ ml-benchmarks/
 | **KNN ($k=5$, 5-fold CV)** | 0.7121 | 0.7143 | 0.7121 | 0.7091 | 0.8889 |
 | **Decision Tree ($d=12$)** | 0.7558 | 0.7628 | 0.7558 | 0.7569 | 0.8386 |
 | **SVM (RBF, $C=10$)** | 0.7609 | 0.7639 | 0.7609 | 0.7617 | 0.9247 |
-| **Deep Neural Network (Bonus)** | **0.7738** | **0.7835** | **0.7738** | **0.7740** | **0.9295** |
+| Deep Convolutional Neural Network (Bonus) | 0.6581 | 0.6084 | 0.6581 | 0.6255 | 0.8787 |
 
 <p align="center">
   <img src="outputs/q1/classifier_comparison.png" width="85%" alt="Classifier Metric Comparison">
 </p>
 
 ### ROC Curve Analysis
-- **DNN** achieved the highest overall discriminative performance with a weighted **ROC-AUC of 0.9295**, demonstrating superior probability calibration across rare and frequent classes alike.
-- **SVM with RBF Kernel** ranked a close second (**0.9247**), effectively projecting the 27 geometric properties into a high-dimensional feature space where non-linear fault boundaries become linearly separable.
+- **SVM with RBF Kernel** achieved the highest weighted **ROC-AUC of 0.9247**, effectively projecting the 27 geometric properties into a high-dimensional feature space where non-linear fault boundaries become linearly separable.
+- **CNN** reached a weighted ROC-AUC of **0.8787**. It fulfils the bonus convolutional-model requirement, but its local-filter bias is less suited to the arbitrary ordering of tabular descriptors.
 - **Decision Trees (0.8386)** showed the weakest ranking ability due to axis-parallel orthogonal decision boundaries that struggle with correlated feature manifolds.
 
 <p align="center">
-  <img src="outputs/q1/roc_dnn.png" width="48%" alt="DNN ROC">
+  <img src="outputs/q1/roc_cnn.png" width="48%" alt="CNN ROC">
   <img src="outputs/q1/roc_svm.png" width="48%" alt="SVM ROC">
 </p>
 
 ### Overfitting & Model Complexity
 - **Decision Tree Depth Exploration:** As tree depth grows from 1 to 20, training accuracy monotonically increases toward 100%. However, validation performance peaks at $d=12$ and degrades beyond $d > 16$, demonstrating classic variance explosion.
-- **DNN Regularization:** The deep architecture was prevented from overfitting through a combination of Batch Normalization layers, Dropout ($p=0.2$ to $0.3$), and weight decay regularization ($10^{-4}$).
+- **CNN Regularization:** The convolutional architecture uses Batch Normalization, Dropout ($p=0.2$ to $0.3$), and weight decay regularization ($10^{-4}$).
 
 ---
 
@@ -175,6 +184,45 @@ The polynomial degree progression illustrates bias-variance tradeoff across the 
 
 ---
 
+## Part 3: K-Means Clustering & PCA (Credit Card Customers)
+
+### Dataset
+
+- **Source:** [Kaggle Credit Card Dataset for Clustering](https://www.kaggle.com/datasets/arjunbhasin2013/ccdata)
+- **Instances:** 8,950 credit-card customers
+- **Features:** 17 numeric customer-behaviour features; `CUST_ID` is excluded as an identifier.
+- **Preprocessing:** Missing numeric values are median-imputed, then all features are standardized.
+
+### Methods Implemented from Scratch
+
+1. **K-Means:** NumPy-based centroid initialization, assignment/update iterations, empty-cluster handling, and WCSS calculation. Each K uses ten initializations, retaining the lowest-WCSS result.
+2. **PCA:** Covariance-matrix computation and eigendecomposition with NumPy. The saved outputs include all eigenvalues, eigenvectors, explained-variance ratios, and 2-PC/3-PC reduced data.
+
+### K-Means Results
+
+| K | WCSS |
+|---:|---:|
+| 2 | 127,784.30 |
+| 3 | 111,973.61 |
+| 4 | 99,061.94 |
+| 5 | 91,491.11 |
+| 6 | 84,826.40 |
+
+The elbow is at **K=4**, which is used for the PCA-space cluster visualization.
+
+<p align="center">
+  <img src="outputs/q3/kmeans_elbow_curve.png" width="48%" alt="K-Means elbow curve">
+  <img src="outputs/q3/pca_first_two_components.png" width="48%" alt="PCA cluster visualization">
+</p>
+
+### PCA Results
+
+- First 2 principal components explain **47.61%** of the variance.
+- First 3 principal components explain **56.42%** of the variance.
+- `pca_cumulative_explained_variance.png` visualizes cumulative variance across all components.
+
+---
+
 ## Installation & Quickstart
 
 ### Prerequisites
@@ -203,9 +251,12 @@ python q1_classification.py
 
 # Run Question 2: Regression benchmark
 python q2_regression.py
+
+# Run Question 3: K-Means clustering and PCA
+python q3_clustering_pca.py
 ```
 
-All figures will be populated in `outputs/q1/` and `outputs/q2/` respectively.
+All figures and tabular outputs will be populated in `outputs/q1/`, `outputs/q2/`, and `outputs/q3/` respectively.
 
 ---
 
